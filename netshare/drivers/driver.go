@@ -16,7 +16,7 @@ type volumeDriver struct {
 func newVolumeDriver(root string) volumeDriver {
 	return volumeDriver{
 		root:   root,
-		mountm: NewVolumeManager(),
+		mountm: NewVolumeManager(root),
 		m:      &sync.Mutex{},
 	}
 }
@@ -41,7 +41,7 @@ func (v volumeDriver) Create(r *volume.CreateRequest) error {
 		return err
 	}
 
-	v.mountm.Create(resName, dest, r.Options)
+	v.mountm.Create(resName, r.Options)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (v volumeDriver) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 
 func (v volumeDriver) List() (*volume.ListResponse, error) {
 	log.Debugf("Entering List")
-	return &volume.ListResponse{Volumes: v.mountm.GetVolumes(v.root)}, nil
+	return &volume.ListResponse{Volumes: v.mountm.GetVolumes()}, nil
 }
 
 func (v volumeDriver) Capabilities() *volume.CapabilitiesResponse {

@@ -62,7 +62,7 @@ func (n cephDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	if err := n.mountVolume(r.Name, source, hostdir); err != nil {
 		return nil, err
 	}
-	n.mountm.Add(r.Name, hostdir)
+	n.mountm.Add(r.Name)
 	return &volume.MountResponse{Mountpoint: hostdir}, nil
 }
 

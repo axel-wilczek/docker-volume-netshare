@@ -63,7 +63,7 @@ func (e efsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) 
 	if err := e.mountVolume(source, hostdir); err != nil {
 		return nil, err
 	}
-	e.mountm.Add(r.Name, hostdir)
+	e.mountm.Add(r.Name)
 	return &volume.MountResponse{Mountpoint: hostdir}, nil
 }
 

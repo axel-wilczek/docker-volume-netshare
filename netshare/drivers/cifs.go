@@ -111,7 +111,7 @@ func (c CifsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	if err := c.mountVolume(r.Name, source, hostdir, c.getCreds(host)); err != nil {
 		return nil, err
 	}
-	c.mountm.Add(r.Name, hostdir)
+	c.mountm.Add(r.Name)
 
 	if c.mountm.GetOption(resolvedName, ShareOpt) != "" && c.mountm.GetOptionAsBool(resolvedName, CreateOpt) {
 		log.Infof("Mount: Share and Create options enabled - using %s as sub-dir mount", resolvedName)

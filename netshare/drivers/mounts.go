@@ -5,6 +5,10 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/go-plugins-helpers/volume"
 	"strings"
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
 const (
@@ -21,13 +25,47 @@ type mount struct {
 }
 
 type mountManager struct {
+	root string
 	mounts map[string]*mount
 }
 
-func NewVolumeManager() *mountManager {
-	return &mountManager{
+func NewVolumeManager(root string) *mountManager {
+	m := mountManager{
+		root: root,
 		mounts: map[string]*mount{},
 	}
+
+	metaPath := filepath.Join(root, ".meta")
+
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		os.Mkdir(metaPath, os.ModeDir)
+		return &m
+	}
+
+	files, err := ioutil.ReadDir(metaPath)
+	if err != nil {
+		return &m
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue;
+		}
+
+		content, err := ioutil.ReadFile(filepath.Join(metaPath, file.Name()))
+		if err != nil {
+			continue
+		}
+
+		var opts map[string]string
+		if err := json.Unmarshal(content, &opts); err != nil {
+			continue
+		}
+
+		m.Create(file.Name(), opts)
+	}
+
+	return &m
 }
 
 func (m *mountManager) HasMount(name string) bool {
@@ -89,25 +127,34 @@ func (m *mountManager) Count(name string) int {
 	return 0
 }
 
-func (m *mountManager) Add(name, hostdir string) {
+func (m *mountManager) Add(name string) {
 	_, found := m.mounts[name]
 	if found {
 		m.Increment(name)
 	} else {
-		m.mounts[name] = &mount{name: name, hostdir: hostdir, managed: false, connections: 1}
+		m.mounts[name] = &mount{name: name, hostdir: mountpoint(m.root, name), managed: false, connections: 1}
 	}
 }
 
-func (m *mountManager) Create(name, hostdir string, opts map[string]string) *mount {
+func (m *mountManager) Create(name string, opts map[string]string) *mount {
 	c, found := m.mounts[name]
 	if found && c.connections > 0 {
 		c.opts = opts
 		return c
-	} else {
-		mnt := &mount{name: name, hostdir: hostdir, managed: true, opts: opts, connections: 0}
-		m.mounts[name] = mnt
-		return mnt
 	}
+
+	metaFilePath := filepath.Join(m.root, ".meta", name)
+	if _, err := os.Stat(metaFilePath); os.IsExist(err) {
+		data, _ := json.Marshal(opts);
+
+		if err := ioutil.WriteFile(metaFilePath, data, os.ModePerm); err != nil {
+			panic(err)
+		}
+	}
+
+	mnt := &mount{name: name, hostdir: mountpoint(m.root, name), managed: true, opts: opts, connections: 0}
+	m.mounts[name] = mnt
+	return mnt
 }
 
 func (m *mountManager) Delete(name string) error {
@@ -115,6 +162,7 @@ func (m *mountManager) Delete(name string) error {
 	if m.HasMount(name) {
 		if m.Count(name) < 1 {
 			delete(m.mounts, name)
+			os.Remove(filepath.Join(m.root, ".meta", name))
 			return nil
 		}
 		return errors.New("Volume is currently in use")
@@ -147,7 +195,7 @@ func (m *mountManager) Decrement(name string) int {
 	return 0
 }
 
-func (m *mountManager) GetVolumes(rootPath string) []*volume.Volume {
+func (m *mountManager) GetVolumes() []*volume.Volume {
 
 	volumes := []*volume.Volume{}
 

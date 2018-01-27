@@ -73,10 +73,10 @@ func (n nfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) 
 	}
 
 	if n.mountm.HasMount(resolvedName) == false {
-		n.mountm.Create(resolvedName, hostdir, resOpts)
+		n.mountm.Create(resolvedName, resOpts)
 	}
 
-	n.mountm.Add(resolvedName, hostdir)
+	n.mountm.Add(resolvedName)
 
 	if err := n.mountVolume(resolvedName, source, hostdir, n.version); err != nil {
 		return nil, err
