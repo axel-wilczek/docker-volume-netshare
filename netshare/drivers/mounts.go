@@ -58,8 +58,9 @@ func NewVolumeManager(root string) *mountManager {
 
 		var opts map[string]string
 		if err := json.Unmarshal(content, &opts); err == nil {
-			log.Debugf("Mount '%s' found with options: %v", path, opts)
-			m.Create(f.Name(), opts)
+			name,_ :=filepath.Rel(metaPath, path)
+			log.Debugf("Mount '%s' found with options: %v", name, opts)
+			m.Create(name, opts)
 		}
 
 		return nil
