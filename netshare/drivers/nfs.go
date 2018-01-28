@@ -44,7 +44,7 @@ func (n nfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) 
 
 	resolvedName, resOpts := resolveName(r.Name)
 
-	hostdir := mountpoint(n.root, resolvedName)
+	hostdir := mountpoint(n.volumeDriver.root, resolvedName)
 	source := n.fixSource(resolvedName)
 
 	// Support adhoc mounts (outside of docker volume create)
@@ -102,7 +102,7 @@ func (n nfsDriver) Unmount(r *volume.UnmountRequest) error {
 
 	resolvedName, _ := resolveName(r.Name)
 
-	hostdir := mountpoint(n.root, resolvedName)
+	hostdir := mountpoint(n.volumeDriver.root, resolvedName)
 
 	if n.mountm.HasMount(resolvedName) {
 		if n.mountm.Count(resolvedName) > 1 {

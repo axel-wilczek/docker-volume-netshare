@@ -37,33 +37,33 @@ func NewVolumeManager(root string) *mountManager {
 
 	metaPath := filepath.Join(root, ".meta")
 
-	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
-		os.Mkdir(metaPath, os.ModeDir)
+	if _, err := os.Stat(metaPath); err != nil {
+		log.Debugf("Directory '%s' not found... creating", metaPath)
+		os.Mkdir(metaPath, 0755)
 		return &m
 	}
 
-	files, err := ioutil.ReadDir(metaPath)
-	if err != nil {
-		return &m
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue;
+	log.Debugf("Reading metadata from: %s", metaPath)
+	filepath.Walk(metaPath, func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
 		}
 
-		content, err := ioutil.ReadFile(filepath.Join(metaPath, file.Name()))
+		log.Debugf("Reading metadata file from: %s", path)
+		content, err := ioutil.ReadFile(path)
 		if err != nil {
-			continue
+			log.Debugf("Failed to read metadata file from: %s", path)
+			return nil
 		}
 
 		var opts map[string]string
-		if err := json.Unmarshal(content, &opts); err != nil {
-			continue
+		if err := json.Unmarshal(content, &opts); err == nil {
+			log.Debugf("Mount '%s' found with options: %v", path, opts)
+			m.Create(f.Name(), opts)
 		}
 
-		m.Create(file.Name(), opts)
-	}
+		return nil
+	})
 
 	return &m
 }
@@ -143,13 +143,18 @@ func (m *mountManager) Create(name string, opts map[string]string) *mount {
 		return c
 	}
 
-	metaFilePath := filepath.Join(m.root, ".meta", name)
-	if _, err := os.Stat(metaFilePath); os.IsExist(err) {
-		data, _ := json.Marshal(opts);
+	subpath, _ := filepath.Split(name)
+	path := filepath.Join(m.root, ".meta", subpath)
 
-		if err := ioutil.WriteFile(metaFilePath, data, os.ModePerm); err != nil {
-			panic(err)
-		}
+	log.Debugf("Metadata directory: %s", path)
+	os.MkdirAll(path, 0755)
+
+	filePath := filepath.Join(path, filepath.Base(name))
+	log.Debugf("Metadata file path: %s", filePath)
+
+	data, _ := json.Marshal(opts);
+	if err := ioutil.WriteFile(filePath, data, 0760); err != nil {
+		panic(err)
 	}
 
 	mnt := &mount{name: name, hostdir: mountpoint(m.root, name), managed: true, opts: opts, connections: 0}
