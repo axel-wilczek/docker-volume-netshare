@@ -5,9 +5,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/go-plugins-helpers/volume"
 	"strings"
-	"encoding/json"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 )
 
@@ -27,44 +24,19 @@ type mount struct {
 type mountManager struct {
 	root string
 	mounts map[string]*mount
+	store *mountStore
 }
 
 func NewVolumeManager(root string) *mountManager {
 	m := mountManager{
 		root: root,
 		mounts: map[string]*mount{},
+		store: NewVolumeStore(filepath.Join(root, ".meta")),
 	}
 
-	metaPath := filepath.Join(root, ".meta")
-
-	if _, err := os.Stat(metaPath); err != nil {
-		log.Debugf("Directory '%s' not found... creating", metaPath)
-		os.Mkdir(metaPath, 0755)
-		return &m
+	for name, opts := range m.store.GetMounts() {
+		m.Create(name, opts)
 	}
-
-	log.Debugf("Reading metadata from: %s", metaPath)
-	filepath.Walk(metaPath, func(path string, f os.FileInfo, err error) error {
-		if f.IsDir() {
-			return nil
-		}
-
-		log.Debugf("Reading metadata file from: %s", path)
-		content, err := ioutil.ReadFile(path)
-		if err != nil {
-			log.Debugf("Failed to read metadata file from: %s", path)
-			return nil
-		}
-
-		var opts map[string]string
-		if err := json.Unmarshal(content, &opts); err == nil {
-			name,_ :=filepath.Rel(metaPath, path)
-			log.Debugf("Mount '%s' found with options: %v", name, opts)
-			m.Create(name, opts)
-		}
-
-		return nil
-	})
 
 	return &m
 }
@@ -144,19 +116,7 @@ func (m *mountManager) Create(name string, opts map[string]string) *mount {
 		return c
 	}
 
-	subpath, _ := filepath.Split(name)
-	path := filepath.Join(m.root, ".meta", subpath)
-
-	log.Debugf("Metadata directory: %s", path)
-	os.MkdirAll(path, 0755)
-
-	filePath := filepath.Join(path, filepath.Base(name))
-	log.Debugf("Metadata file path: %s", filePath)
-
-	data, _ := json.Marshal(opts);
-	if err := ioutil.WriteFile(filePath, data, 0760); err != nil {
-		panic(err)
-	}
+	m.store.Add(name, opts)
 
 	mnt := &mount{name: name, hostdir: mountpoint(m.root, name), managed: true, opts: opts, connections: 0}
 	m.mounts[name] = mnt
@@ -168,7 +128,7 @@ func (m *mountManager) Delete(name string) error {
 	if m.HasMount(name) {
 		if m.Count(name) < 1 {
 			delete(m.mounts, name)
-			os.Remove(filepath.Join(m.root, ".meta", name))
+			m.store.Remove(name)
 			return nil
 		}
 		return errors.New("Volume is currently in use")
